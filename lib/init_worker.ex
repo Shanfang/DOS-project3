@@ -1,30 +1,34 @@
 defmodule InitWorker do
-    
+    import Matrix
+
    # handle when there are no more than 8 nodes
-    defp generate_leaf_set(index, total, sorted_node_list) when total <= 8 do
+    def generate_leaf_set(index, sorted_node_list) when length(sorted_node_list) <= 8 do
         leaf_set = List.duplicate("00000000", 8)
         leaf_indicator = 0
+        total = length(sorted_node_list)
+        
         for i <- 0..total - 1 do
             #if leaf_indicator == index do
             #    leaf_indicator = leaf_indicator + 1 # skip the node itself
             #end
-            leaf_set = List.update_at(leaf_set, i, Enum.at(sorted_node_list, leaf_indicator)
+            leaf_set = List.update_at(leaf_set, i, Enum.at(sorted_node_list, leaf_indicator))
             leaf_indicator = leaf_indicator + 1
         end  
         leaf_set      
     end
 
     # handle case when there are more than 8 nodes
-    defp generate_leaf_set(index, total, sorted_node_list) when total > 8 do
+    def generate_leaf_set(index, total, sorted_node_list) when length(sorted_node_list) > 8 do
         leaf_set = List.duplicate("00000000", 9)
         leaf_indicator = 0
+        total = length(sorted_node_list)
 
         cond do
             index - 4 < 0 ->
                 leaf_indicator = 0
             index + 4 > total - 1
                 leaf_indicator = total - 9
-            _ ->
+            true ->
                 leaf_indicator = index - 4 
         end
         
@@ -34,13 +38,13 @@ defmodule InitWorker do
             if i == 4 do
                 leaf_indicator = leaf_indicator + 1
             end
-            leaf_set = List.replace_at(leaf_set, i, Enum.at(sorted_node_list, leaf_indicator)
+            leaf_set = List.replace_at(leaf_set, i, Enum.at(sorted_node_list, leaf_indicator))
             leaf_indicator = leaf_indicator + 1
         end
         leaf_set
     end
 
-    defp generate_routing_table(index, distance_nodes_map, node_map) do
+    def generate_routing_table(index, distance_nodes_map) do
         routing_table = Matrix.form_list([
             List.duplicate("00000000", 4),
             List.duplicate("00000000", 4),
@@ -53,49 +57,31 @@ defmodule InitWorker do
         ])
         
         node_key = index |> Integer.to_string |> String.to_atom
+        # id is a string
         id  = Map.get(distance_nodes_map, node_key)
-            
-        routing_table[0][j] = key
-        
-        for i <- 0..7 do
-            #j = 0
-            # get the digit at ith column in the table
-            str_digit = String.slice(id, i, i)
-            digit = String.to_integer(str_digit)
-
-            # set itself as "00000000" in the routing table
-            # routing_table[i][digit] = "00000000" 
-
-            # enumrate the node_map to insert other node into this node's routing table
-            for j <- 0..3 do
-                node_map |> Enum.map(fn ({key => value}) ->
-                    key_digit = String.slice(key, i, i)
-                    cond do
-                        key != id &&  i > 0 ->
-                            k == String.to_integer(key_digit) 
-                            sub_key = String.slice(key, 0, i - 1)
-                            sub_id =  String.slice(id, 0, i - 1)                          
-                            if key_digit != str_digit && sub_key == sub_id && routing_table[i][] == "00000000" do
-                                routing_table[i][k] = key
-                            end
-                        key != id &&  i == 0 ->
-                            for j <- 0..3 do
-                                routing_table[i][j] = key                           
-                            end
-                        _ ->
-                            routing_table[i][j] = "00000000"
-                    end
-                end)
-                j = j + 1
+    
+        # enumrate the node_map to insert other node into this node's routing table
+        # get a list from the node_map
+        total = map_size(distance_nodes_map) 
+        for i <- 0..total - 1 do
+            to_fill = Map.get(distance_nodes_map, i |> Integer.to_string |> String.to_atom)
+            if to_fill != id do
+                row = get_shared_len(to_fill, id)
+                # key!=id has guaranteed that row cannot be the last index here
+                column = String.slice(to_fill, row + 1, row + 1) 
+                # insert into routing table only if there is no existing element in the specific spot
+                if routing_table[row][column] == "000000" do
+                    routing_table = put_in(routing_table[row][column], to_fill)
+                end                     
             end
-
         end
         routing_table
     end
 
-    defp generate_neighbor_set(id, total, distance_nodes_map) do
+    def generate_neighbor_set(id, distance_nodes_map) do
         neighbor_set = List.duplicate("00000000", 8)
         next_neighbor = id + 1
+        total = map_size(distance_nodes_map)
 
         # for the last node, its neighbor should start from the 1st one
         if next_neighbor == total do
@@ -108,4 +94,14 @@ defmodule InitWorker do
         neighbor_set
     end
 
+    defp get_shared_len(key, id) do
+        len = String.length(key)
+        shared_len = 0
+        for i <- 0..len - 1 do
+            if String.slice(key, 0, i) == String.slice(id, 0, i) do
+                shared_len = shared_len + 1
+            end           
+        end
+        shared_len
+    end
 end

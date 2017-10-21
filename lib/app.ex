@@ -1,9 +1,9 @@
 defmodule App do
     def main(args) do
-        num_nodes = Enum.at(args, 0)
-        num_nodes = String.to_integer(num_nodes)   
-        num_requests = Enum.at(args, 1)
-        num_requests = String.to_integer(num_requests)
+        nodes = Enum.at(args, 0)
+        num_nodes = String.to_integer(nodes)   
+        requests = Enum.at(args, 1)
+        num_requests = String.to_integer(requests)
         loop(num_nodes, num_requests, 1)
     end
 

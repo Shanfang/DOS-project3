@@ -1,5 +1,4 @@
-def Coordinator do
-    import Matrix
+defmodule Coordinator do
     use GenServer
 
     ######################### client API ####################
@@ -9,19 +8,22 @@ def Coordinator do
 
     # build network using the input parameters
     def build_network(coordinator, num_nodes, num_requests) do
-        Genserver.cast(coordinator, {:build_network, num_nodes, num_requests})
+        GenServer.cast(coordinator, {:build_network, num_nodes, num_requests})
     end
 
+
     def stop_routing(coordinator, num_of_hops) do
-        Genserver.cast(coordinator, {:stop_routing, num_of_hops})
+        GenServer.cast(coordinator, {:stop_routing, num_of_hops})
     end
     ######################### callbacks ####################
     def init(%{}) do
-        state = %{distance_nodes_map => %{}, node_map => %{}, sorted_node_list => [], total: 0, requests: 0, hops: 0, reports: 0}
+        state = %{distance_nodes_map: %{}, node_map: %{}, sorted_node_listz: [], total: 0, requests: 0, hops: 0, reports: 0}
         {:ok, state}
     end
 
     def handle_cast({:build_network, num_nodes, num_requests}, state) do
+        distance_nodes_map = state[:distance_nodes_map]
+        node_map = state[:node_map]
         for index <- 0..num_nodes - 1 do
             Worker.start_link(index) 
             #nodeId = generate_nodeId(str_index, node_map)
@@ -29,18 +31,21 @@ def Coordinator do
 
             # map actor nodeId to actor pid
             node = index |> Integer.to_string |> String.to_atom
-            node_map = Map.put(node_map, nodeId, node) 
+            node_map = Map.put(state[:node_map], nodeId, node) 
 
+            Enum.each(node_map, fn(node) -> IO.inspect node end)
             # map index to nodeId
-            distance_nodes_map = Map.put(distance_nodes_map, index |> to_string |> String.to_atom, nodeId)           
+            distance_nodes_map = Map.put(distance_nodes_map, index |> to_string |> String.to_atom, nodeId)  
+            Enum.each(distance_nodes_map, fn(node) -> IO.inspect node end)
+            
         end 
 
         # sorted_node_list stores the string id of each node(get from the node_map's keys)
-        sorted_node_list = Map.keys(node_map) |> Enum.sort
+        sorted_node_list = Map.keys(state[:node_map]) |> Enum.sort
 
-
+        IO.puts "Start to init workers from coordinator..."
         init_workers(num_nodes, node_map, distance_nodes_map, sorted_node_list)
-        send_requests(node_map, distance_nodes_map, num_requests, num_nodes)
+        send_requests(node_map, distance_nodes_map, num_requests, num_nodes, state[:num_of_hops])
 
         new_state = %{state | node_map: node_map, distance_nodes_map: distance_nodes_map, sorted_node_list: sorted_node_list, total: num_nodes, requests: num_requests}
         {:noreply, new_state}
@@ -50,7 +55,7 @@ def Coordinator do
     def handle_cast({:stop_routing, num_of_hops}, state) do
         hops = num_of_hops + state[:hops]
         reports = state[:reports] + 1
-        target_reports = num_nodes * num_requests
+        target_reports = state[:total] * state[:requests]
         if reports == target_reports do
             # calculate the average
             average = hops / reports
@@ -87,20 +92,21 @@ def Coordinator do
 
     defp init_workers(num_nodes, node_map, distance_nodes_map, sorted_node_list) do
         for i <- 0..num_nodes - 1 do
-            leaf_set = generate_leaf_set(i, num_nodes, sorted_node_list)
-            routing_table = generate_routing_table(i, distance_nodes_map, node_map)
-            neighbor_set = generate_neighbor_set(i, num_nodes, distance_nodes_map)
-            
-            # send init msg to each actor in the pastry
+            IO.puts "In the for loop..."            
             node_key = i |> Integer.to_string |> String.to_atom
             nodeId = Map.get(distance_nodes_map, node_key)
+            IO.inspect nodeId
+            
             worker = Map.get(node_map, nodeId)
-            Worker.initi_pastry_worker(worker, num_nodes, node_map, distance_nodes_map, sorted_node_list)
+            IO.inspect worker
+
+            Worker.init_pastry_worker(worker, distance_nodes_map, sorted_node_list)
         end
+        IO.puts "Finish init workers..."
     end
 
     # send request to nodes that are numerically closest in index
-    defp send_requests(node_map, distance_nodes_map, num_requests, num_nodes) do
+    defp send_requests(node_map, distance_nodes_map, num_requests, num_nodes, num_of_hops) do
         for i <- 0..num_nodes - 1 do
             source_key = i |> Integer.to_string |> String.to_atom            
             source_node = Map.get(distance_nodes_map, source_key)
@@ -117,4 +123,4 @@ def Coordinator do
             end
         end
     end
- 
+end

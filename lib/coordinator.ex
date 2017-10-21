@@ -8,11 +8,11 @@ def Coordinator do
     end
 
     # build network using the input parameters
-    def build_network(num_nodes, num_requests) do
+    def build_network(coordinator, num_nodes, num_requests) do
         Genserver.cast(coordinator, {:build_network, num_nodes, num_requests})
     end
 
-    def stop_routing(num_of_hops) do
+    def stop_routing(coordinator, num_of_hops) do
         Genserver.cast(coordinator, {:stop_routing, num_of_hops})
     end
     ######################### callbacks ####################
@@ -37,8 +37,11 @@ def Coordinator do
 
         # sort the node list by nodeId to form the leaf set
         # fix the sorted list, it does not generate a sorted list here##
+        # sorted_node_list = node_map |> Enum.sort_by(&(elem(&1, 1)))
         #@@@@@@@@@@@@@@@@@@@@@@@@@
-        sorted_node_list = node_map |> Enum.sort_by(&(elem(&1, 1)))
+        # sorted_node_list stores the string id of each node(get from the node_map's keys)
+        sorted_node_list = keys(node_map) |> Enum.sort
+
 
         init_workers(num_nodes, node_map, distance_nodes_map, sorted_node_list)
         send_requests(node_map, distance_nodes_map, num_requests, num_nodes)
@@ -108,8 +111,8 @@ def Coordinator do
             # send msg to every destination node
             for j <- 1..num_requests do
                 dest_key = j + i |> Integer.to_string |> String.to_atom            
-                dest_node = Map.get(distance_nodes_map, dest_key)
-                Worker.deliver_msg(source_node, dest_node, num_of_hops)
+                dest_node_id = Map.get(distance_nodes_map, dest_key)
+                Worker.deliver_msg(source_node, dest_node_id, num_of_hops)
             end
         end
     end

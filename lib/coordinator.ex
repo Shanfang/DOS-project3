@@ -35,12 +35,8 @@ def Coordinator do
             distance_nodes_map = Map.put(distance_nodes_map, index |> to_string |> String.to_atom, nodeId)           
         end 
 
-        # sort the node list by nodeId to form the leaf set
-        # fix the sorted list, it does not generate a sorted list here##
-        # sorted_node_list = node_map |> Enum.sort_by(&(elem(&1, 1)))
-        #@@@@@@@@@@@@@@@@@@@@@@@@@
         # sorted_node_list stores the string id of each node(get from the node_map's keys)
-        sorted_node_list = keys(node_map) |> Enum.sort
+        sorted_node_list = Map.keys(node_map) |> Enum.sort
 
 
         init_workers(num_nodes, node_map, distance_nodes_map, sorted_node_list)
@@ -103,16 +99,21 @@ def Coordinator do
         end
     end
 
+    # send request to nodes that are numerically closest in index
     defp send_requests(node_map, distance_nodes_map, num_requests, num_nodes) do
         for i <- 0..num_nodes - 1 do
             source_key = i |> Integer.to_string |> String.to_atom            
-            source_node = Map.get(distance_nodes_map, node_key)
+            source_node = Map.get(distance_nodes_map, source_key)
+            source_pid = Map.get(node_map, source_node)
             
             # send msg to every destination node
             for j <- 1..num_requests do
-                dest_key = j + i |> Integer.to_string |> String.to_atom            
-                dest_node_id = Map.get(distance_nodes_map, dest_key)
-                Worker.deliver_msg(source_node, dest_node_id, num_of_hops)
+                dest_key = j + i |> Integer.to_string |> String.to_atom 
+                # source_node and destination_node are strings here           
+                destination_node = Map.get(distance_nodes_map, dest_key)
+                source_pid = Map.get(distance_nodes_map, dest_key)
+                source_pid = String.to_atom(source_node)
+                Worker.deliver_msg(source_pid, source_node, destination_node, num_of_hops)
             end
         end
     end

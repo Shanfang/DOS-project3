@@ -1,6 +1,5 @@
 defmodule Worker do
     import InitWorker
-    #import Matrix
     use GenServer
 
     ######################### client API ####################
@@ -28,26 +27,13 @@ defmodule Worker do
     def handle_call({:init_pastry_worker, distance_nodes_map, sorted_node_list, node_map}, _from, state) do
         %{state | distance_nodes_map: distance_nodes_map, node_map: node_map}         
         id = state[:id]
-        #key = id |> Integer.to_string |> String.to_atom
         key = id |> Integer.to_string
         nodeId = Map.get(distance_nodes_map, key)
 
         # get the index of the nodeId in sorted_nodes_list, it can be different from id as it is sorted 
         sorted_list_index = Enum.find_index(sorted_node_list, fn(nodeId) -> 
-            #String.to_integer(nodeId) == state[:id]
-            nodeId == state[:id] |> Integer.to_string(4) |> String.pad_leading(8, "0")
-            
+            nodeId == state[:id] |> Integer.to_string(4) |> String.pad_leading(8, "0")            
         end)
-        #IO.puts "To init worker with sorted_node_list, index is..."
-        #IO.inspect sorted_list_index
-
-        #IO.puts "Before init the work, check the passed in node_map "
-        #Enum.each(node_map, fn(node) -> IO.inspect node end)
-        #IO.puts "Before init the work, check the passed in distance_nodes_map "
-        #Enum.each(distance_nodes_map, fn(node) -> IO.inspect node end)
-        #IO.puts "Before init the work, check the passed in sorted_node_list "
-        #Enum.each(sorted_node_list, fn(node) -> IO.inspect node end)
-
         leaf_set = generate_leaf_set(sorted_list_index, sorted_node_list)
         neighbor_set = generate_neighbor_set(state[:id], distance_nodes_map)
         routing_table = generate_routing_table(state[:id], distance_nodes_map)
@@ -113,27 +99,19 @@ defmodule Worker do
         
         cond do
             destination_int >= first_leaf && destination_int <= last_leaf ->
-                #IO.puts "Find next node in leaf set..."
                 # first scenario in the routing procedure             
                 next_nodeId = search_leaf_set(destination_int, inital_distanceTD, next_nodeId, leaf_set, start_index)                    
             routing_table[row][column] != "00000000" ->
                 # second scenario in the routing procedure
-                IO.puts "Find next node in routing table set..."                
                 next_nodeId = routing_table[row][column]
             true ->
                 # third scenario in the routing procudure, rare case
                 #(num_shared_digits_AD(some_node, destination_node) >= num_shared_digits_AD(nodeId, destination_node)) && 
                 #(distance(some_node, destination_node) < distance(nodeId, destination_node))
-                IO.puts "The rare case happens..."
                 
                 # check if there are numerically closer nodes in the leaf set
                 rare_case1 = rare_leaf_set(destination_node, distance_AD, next_nodeId, leaf_set, start_index, num_shared_digits_AD)
-                    
-                # check if there are numerically closer nodes in the routing table
-                #IO.puts "Destination node is " <> destination_node                
-                #dest_char = String.slice(destination_node, row, 1)
-                #IO.puts "The char is " <> dest_char 
-                #dest_digit= String.to_integer(dest_char)
+
                 dest_digit = String.slice(destination_node, row, 1) |> String.to_integer
                 
                 rare_case2 = rare_routing_table(dest_digit, routing_table, num_shared_digits_AD, start_index, next_nodeId, 8)
@@ -224,15 +202,10 @@ defmodule Worker do
         if index == dest_digit do
             index = index - 1
         end
-        #some_node = routing_table[num_shared_digits_AD][index]
         if abs(index - dest_digit) < minimum && routing_table[num_shared_digits_AD][index] != "00000000" do
             min = abs(index - dest_digit)
             next_nodeId = routing_table[num_shared_digits_AD][index]
         end
-        #result = rare_case_node(destination_node, some_node, num_shared_digits_AD, distance_AD)
-        #if result != "00000000" do
-        #    next_nodeId = some_node
-        #end
         rare_routing_table(dest_digit, routing_table, num_shared_digits_AD, index - 1, next_nodeId, minimum)      
     end
     

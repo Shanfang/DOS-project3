@@ -64,7 +64,6 @@ defmodule Coordinator do
 
     defp init_workers(num_nodes, node_map, distance_nodes_map, sorted_node_list) do
         for i <- 0..num_nodes - 1 do
-            #node_key = i |> Integer.to_string |> String.to_atom
             node_key = i |> Integer.to_string
             
             nodeId = Map.get(distance_nodes_map, node_key)           
@@ -99,18 +98,12 @@ defmodule Coordinator do
 
     def create_workers(node_map, distance_nodes_map, index) when index >= 0 do
         node = Worker.start_link(index) |> elem(1)
-        #IO.inspect node
         nodeId = generate_nodeId(index)
 
         # map actor nodeId to actor pid
         node_map = Map.put(node_map, nodeId, node) 
-        #IO.puts "inside the node_map"
-        #Enum.each(node_map, fn(node) -> IO.inspect node end)
-
         # map index to nodeId        
         distance_nodes_map = Map.put(distance_nodes_map, index |> Integer.to_string, nodeId)             
-        IO.puts "inside the distance_nodes_map"
-        Enum.each(distance_nodes_map, fn(node) -> IO.inspect node end)
         create_workers(node_map, distance_nodes_map, index - 1)
     end
 

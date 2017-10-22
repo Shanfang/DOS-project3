@@ -15,7 +15,6 @@ defmodule Worker do
     end
 
     def deliver_msg(actor_name, source_node, destination_node, num_of_hops) do
-        IO.puts "Api to deliver msg in pastry worker..."
         GenServer.cast(actor_name, {:deliver_msg, source_node, destination_node, num_of_hops})
     end
     ######################### callbacks ####################
@@ -27,16 +26,27 @@ defmodule Worker do
     end
 
     def handle_call({:init_pastry_worker, distance_nodes_map, sorted_node_list, node_map}, _from, state) do
+        %{state | distance_nodes_map: distance_nodes_map, node_map: node_map}         
         id = state[:id]
-        key = id |> Integer.to_string |> String.to_atom
+        #key = id |> Integer.to_string |> String.to_atom
+        key = id |> Integer.to_string
         nodeId = Map.get(distance_nodes_map, key)
 
         # get the index of the nodeId in sorted_nodes_list, it can be different from id as it is sorted 
         sorted_list_index = Enum.find_index(sorted_node_list, fn(nodeId) -> 
-            String.to_integer(nodeId) == state[:id]
+            #String.to_integer(nodeId) == state[:id]
+            nodeId == state[:id] |> Integer.to_string(4) |> String.pad_leading(8, "0")
+            
         end)
-        IO.puts "To init worker with sorted_node_list, index is..."
-        IO.inspect sorted_list_index
+        #IO.puts "To init worker with sorted_node_list, index is..."
+        #IO.inspect sorted_list_index
+
+        #IO.puts "Before init the work, check the passed in node_map "
+        #Enum.each(node_map, fn(node) -> IO.inspect node end)
+        #IO.puts "Before init the work, check the passed in distance_nodes_map "
+        #Enum.each(distance_nodes_map, fn(node) -> IO.inspect node end)
+        #IO.puts "Before init the work, check the passed in sorted_node_list "
+        #Enum.each(sorted_node_list, fn(node) -> IO.inspect node end)
 
         leaf_set = generate_leaf_set(sorted_list_index, sorted_node_list)
         neighbor_set = generate_neighbor_set(state[:id], distance_nodes_map)
@@ -59,11 +69,12 @@ defmodule Worker do
         (num_shared_digits(some_node, destination) >= num_shared_digits(nodeId, destination)) && 
         (distance(some_node, destination) < distance(nodeId, destination))
     """
-    def handle_cast({:deliver_msg, source_node, destination_node, num_of_hops}, state) do
+    def handle_cast({:deliver_msg, source_node, destination_node, num_of_hops}, state) do        
         # get self_id from distance_nodes_map, it is a string
-        self_id = Map.get(state[:distance_nodes_map], state[:id] |> Integer.to_string |> String.to_atom)
+        self_id = Map.get(state[:distance_nodes_map], state[:id] |> Integer.to_string)
         next_nodeId = "00000000"
-        num_shared_digits_AD = get_shared_len(destination_node, self_id)
+        full_len = String.length(self_id)
+        num_shared_digits_AD = get_shared_len(destination_node, self_id, full_len, 0, 0)
         leaf_set = state[:leaf_set]
         neighbor_set = state[:neighbor_set]
         routing_table = state[:routing_table]
@@ -83,64 +94,64 @@ defmodule Worker do
         # if the key (id) lies within the leafSet range, then route the 
         # message to the node whose id is numerically closest to the key (id)
         # id is string in leaf_set
-        first_leaf = List.first(leaf_set) |> String.to_integer
-        last_leaf = List.last(leaf_set) |> String.to_integer
-        destination_int = destination_node |> String.to_integer
+        first_leaf = List.first(leaf_set) |> String.to_integer(10)
+        last_leaf = List.last(leaf_set) |> String.to_integer(10)
+        destination_int = destination_node |> String.to_integer(10)
         row = num_shared_digits_AD
         
         # get the row-th digit from destination_node
-        column = String.slice(destination_node, row, row) |> String.to_integer
-
+        col_str = String.slice(destination_node, row, 1) 
+        column = String.to_integer(col_str)
+        start_index = length(leaf_set) - 1 
+        inital_distanceTD = abs(destination_int - last_leaf)
+        #inital_distanceAD = abs(destination_int - state[:id])
+        id_int_base10 = state[:distance_nodes_map] 
+                        |> Map.get(Integer.to_string(state[:id])) 
+                        |> String.to_integer
+        dest_int_base10 = String.to_integer(destination_node, 10)
+        distance_AD = abs(id_int_base10 - dest_int_base10)
+        
         cond do
             destination_int >= first_leaf && destination_int <= last_leaf ->
-                # first scenario in the routing procedure                       
-                distance = abs(first_leaf - destination_int)
-                Enum.slice(leaf_set, 1..7) |> Enum.each(fn(nodeId) -> 
-                    new_distance = abs(String.to_integer(nodeId) - destination_int)
-                    if new_distance < distance do
-                        distance = new_distance
-                        next_nodeId = nodeId
-                    end
-                end)            
+                IO.puts "Find next node in leaf set..."
+                # first scenario in the routing procedure             
+                next_nodeId = search_leaf_set(destination_int, inital_distanceTD, next_nodeId, leaf_set, start_index)                    
             routing_table[row][column] != "00000000" ->
                 # second scenario in the routing procedure
+                IO.puts "Find next node in routing table set..."                
                 next_nodeId = routing_table[row][column]
             true ->
                 # third scenario in the routing procudure, rare case
                 #(num_shared_digits_AD(some_node, destination_node) >= num_shared_digits_AD(nodeId, destination_node)) && 
                 #(distance(some_node, destination_node) < distance(nodeId, destination_node))
-                distance_AD = abs(String.to_integer(Map.get(state[:distance_nodes_map], state[:id])) - String.to_integer(destination_node))
+                IO.puts "The rare case happens..."
                 
                 # check if there are numerically closer nodes in the leaf set
-                leaf_set |> Enum.map(fn(some_node) -> 
-                    result = rare_case_node(destination_node, some_node, num_shared_digits_AD, distance_AD)
-                    if result != "" do
-                        next_nodeId = some_node
-                    end
-                end)
-
+                rare_case1 = rare_leaf_set(destination_node, distance_AD, next_nodeId, leaf_set, start_index, num_shared_digits_AD)
+                    
                 # check if there are numerically closer nodes in the routing table
-                for i <- 0..7 do
-                    some_node = routing_table[num_shared_digits_AD][i]
-                    result = rare_case_node(destination_node, some_node, num_shared_digits_AD, distance_AD)
-                    if result != "00000000" do
-                        next_nodeId = some_node
-                    end
-                end
-                
+                rare_case2 = rare_routing_table(destination_node, routing_table, num_shared_digits_AD, start_index, next_nodeId, distance_AD)
+                    
                 # check if there are numerically closer nodes in the neighbor set
-                neighbor_set |> Enum.map(fn(some_node) -> 
-                    result = rare_case_node(destination_node, some_node, num_shared_digits_AD, distance_AD)
-                    if result != "00000000" do
-                        next_nodeId = some_node
-                    end
-                end)       
+                rare_case3 = rare_neighbor_set(destination_node, neighbor_set, start_index, next_nodeId, num_shared_digits_AD, distance_AD)
+              
+                cond do
+                    rare_case1 != "00000000" ->                       
+                        next_nodeId = rare_case1
+                    rare_case2 != "00000000" ->                       
+                        next_nodeId = rare_case2
+                    rare_case3 != "00000000" ->                       
+                        next_nodeId = rare_case3
+                    true ->
+                        next_nodeId = "00000000"                      
+                end     
         end
 
         # forward message only if next_nodeId is valid
         if next_nodeId != "00000000" do
             next_node_pid = Map.get(node_map, next_nodeId)
-            Worker.deliver_msg(next_node_pid, source_node, destination_node, num_of_hops + 1)  
+            num_of_hops = num_of_hops + 1
+            Worker.deliver_msg(next_node_pid, source_node, destination_node, num_of_hops)  
         else 
             IO.put "Oops, msg can not be routed!"
         end
@@ -150,26 +161,81 @@ defmodule Worker do
     
     ######################### helper functions ####################
     
-    defp get_shared_len(destination_node, node) do
-        len = String.length(destination_node)
-        shared_len = 0
-        for i <- 0..len - 1 do
-            if String.slice(destination_node, 0, i) == String.slice(node, 0, i) do
-                shared_len = shared_len + 1
-            end           
-        end
+    defp get_shared_len(destination_node, node, full_len, len, shared_len) when len < full_len - 1 do
+        if String.slice(destination_node, 0..len) == String.slice(node, 0..len) do
+            shared_len = shared_len + 1
+        end           
+        get_shared_len(destination_node, node, full_len, len + 1, shared_len)
+    end
+
+    defp get_shared_len(destination_node, node, full_len, len, shared_len) do
         shared_len
+    end
+
+    defp search_leaf_set(destination_int, distance, next_nodeId, leaf_set, index) when index >= 0 do
+        nodeId = Enum.at(leaf_set, index)
+        new_distance = abs(String.to_integer(nodeId) - destination_int)
+        if new_distance < distance do
+            distance = new_distance
+            next_nodeId = nodeId
+        end
+        search_leaf_set(destination_int, distance, next_nodeId, leaf_set, index - 1)   
+    end
+    
+    defp search_leaf_set(destination_int, distance, next_nodeId, leaf_set, index) do
+        next_nodeId
     end
 
     defp rare_case_node(destination_node, some_node, num_shared_digits_AD, distance_AD) do
         next_nodeId = "00000000"
-        num_shared_digits_TD = get_shared_len(destination_node, some_node)
-        distance_TD = abs(String.to_integer(some_node) - String.to_integer(destination_node))
+        full_len = String.length(destination_node)
+        dest_int_base10 = String.to_integer(destination_node, 10)
+        some_int_base10 = String.to_integer(some_node, 10)
+
+        num_shared_digits_TD = get_shared_len(destination_node, some_node, full_len, 0, 0)
+        distance_TD = abs(dest_int_base10 - some_int_base10)
         
         if num_shared_digits_TD >= num_shared_digits_AD && distance_TD < distance_AD do
             next_nodeId = some_node
         end 
         next_nodeId     
+    end
+    defp rare_leaf_set(destination_node, distance, next_nodeId, leaf_set, index, num_shared_digits_AD) when index >= 0 do
+        some_node = Enum.at(leaf_set, index)
+        result = rare_case_node(destination_node, some_node, num_shared_digits_AD, distance)
+        if result != "00000000" do
+            next_nodeId = result
+        end
+        rare_leaf_set(destination_node, distance, next_nodeId, leaf_set, index - 1, num_shared_digits_AD)
+    end
+    
+    defp rare_leaf_set(destination_node, distance, next_nodeId, leaf_set, index, num_shared_digits_AD) do
+        next_nodeId
+    end 
+
+    defp rare_routing_table(destination_node, routing_table, num_shared_digits_AD, index, next_nodeId, distance_AD) when index >= 0 do
+        some_node = routing_table[num_shared_digits_AD][index]
+        result = rare_case_node(destination_node, some_node, num_shared_digits_AD, distance_AD)
+        if result != "00000000" do
+            next_nodeId = some_node
+        end
+        rare_routing_table(destination_node, routing_table, num_shared_digits_AD, index - 1, next_nodeId, distance_AD)      
+    end
+    
+    defp rare_routing_table(destination_node, routing_table, num_shared_digits_AD, start_index, next_nodeId, distance_AD) do
+        next_nodeId
+    end 
+
+    defp rare_neighbor_set(destination_node, neighbor_set, index, next_nodeId, num_shared_digits_AD, distance) when index >= 0 do
+        some_node = Enum.at(neighbor_set, index)
+        result = rare_case_node(destination_node, some_node, num_shared_digits_AD, distance)
+        if result != "00000000" do
+            next_nodeId = result
+        end
+        rare_neighbor_set(destination_node, neighbor_set, index - 1, next_nodeId, num_shared_digits_AD, distance)
+    end
+    defp rare_neighbor_set(destination_node, neighbor_set, index, next_nodeId, num_shared_digits_AD, distance) do
+        next_nodeId
     end
     
 end

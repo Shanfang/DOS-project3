@@ -10,10 +10,7 @@ defmodule App do
     def loop(num_nodes, num_requests, n) when n > 0 do            
         Coordinator.start_link
         IO.puts "Coordinator is started..." 
-
         Coordinator.build_network(:coordinator, num_nodes, num_requests)
-        IO.puts "Coordinator finished building network..."  
-
         loop(num_nodes, num_requests, n - 1)
     end
 

@@ -22,22 +22,28 @@ defmodule InitWorker do
                 leaf_indicator = index - 4 
         end
         len = length(leaf_set)
-        leaf_set = set_up_leaf(len - 1, leaf_indicator, sorted_node_list, leaf_set)
-        IO.puts "After init the leaf set: "
+        leaf_set = set_up_leaf(len - 1, 0, leaf_indicator, sorted_node_list, leaf_set)
+        IO.puts "After init the leaf set is: "
         Enum.each(leaf_set, fn(item) -> IO.inspect item end)
         leaf_set
     end
 
-    defp set_up_leaf(index, leaf_indicator, sorted_node_list, leaf_set) when index >=0 do
+    defp set_up_leaf(flag, index, leaf_indicator, sorted_node_list, leaf_set) when flag >=0 do
         len = length(leaf_set)
         # skip the node itself
         if index == 4 do
             leaf_indicator = leaf_indicator + 1
         end
-        leaf_set = List.replace_at(leaf_set, len - 1 - index, Enum.at(sorted_node_list, leaf_indicator))
-        set_up_leaf(index - 1, leaf_indicator + 1, sorted_node_list, leaf_set)
+        #leaf_set = List.replace_at(leaf_set, index, Enum.at(sorted_node_list, leaf_indicator))
+        
+        if leaf_indicator < len do
+            leaf_set = List.replace_at(leaf_set, index, Enum.at(sorted_node_list, leaf_indicator))
+        #else
+           # List.replace_at(leaf_set, index, "00000000")          
+        end
+        set_up_leaf(flag - 1, index + 1, leaf_indicator + 1, sorted_node_list, leaf_set)
     end
-    defp set_up_leaf(index, leaf_indicator, sorted_node_list, leaf_set) do
+    defp set_up_leaf(flag, index, leaf_indicator, sorted_node_list, leaf_set) do
         leaf_set
     end
 
@@ -113,34 +119,32 @@ defmodule InitWorker do
         neighbor_set = List.duplicate("00000000", 8)
         IO.puts "Before inserting into neighbor set..."
         Enum.each(neighbor_set, fn(element) -> IO.inspect element end)
-        next_neighbor = id + 1
+        len = length(neighbor_set)        
+        #next_neighbor = id + 1
         total = map_size(distance_nodes_map)
 
         #IO.puts "Index in neighbor set, id is..."
         #IO.inspect id
 
         # for the last node, its neighbor should start from the 1st one
-        if next_neighbor == total do
-            next_neighbor = 0
-        end 
-        len = length(neighbor_set)
-        neighbor_set = set_up_neighbor(len - 1, next_neighbor, distance_nodes_map, neighbor_set)
+        #if next_neighbor == total do
+        #    next_neighbor = 0
+        #end 
+        neighbor_set = set_up_neighbor(len - 1, 1, 0, total, distance_nodes_map, neighbor_set)
 
         IO.puts "Neighbor set is set up..."
         Enum.each(neighbor_set, fn(element) -> IO.inspect element end)
         neighbor_set
     end
-    defp set_up_neighbor(index, next_neighbor, distance_nodes_map, neighbor_set) when index >= 0 do
-        key = index + next_neighbor |> Integer.to_string           
-        neighbor_set = List.replace_at(neighbor_set, index, Map.get(distance_nodes_map, key))  
-        set_up_neighbor(index - 1, next_neighbor, distance_nodes_map, neighbor_set) 
+    defp set_up_neighbor(flag, index, next, total, distance_nodes_map, neighbor_set) when flag >= 0 do
+        if next == total do
+            next = 0
+        end 
+        key = Integer.to_string(next)          
+        neighbor_set = List.replace_at(neighbor_set, index - 1, Map.get(distance_nodes_map, key))  
+        set_up_neighbor(flag - 1, index + 1, next + 1, total, distance_nodes_map, neighbor_set) 
     end
-    defp set_up_neighbor(index, next_neighbor, distance_nodes_map, neighbor_set) do
-        Enum.each(neighbor_set, fn (x) ->
-            if x == nil do
-                
-            end
-        end)
+    defp set_up_neighbor(flag, index, next, total, distance_nodes_map, neighbor_set) do
         neighbor_set
     end
 end

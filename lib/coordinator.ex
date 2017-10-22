@@ -83,7 +83,12 @@ defmodule Coordinator do
             
             # send msg to every destination node
             for j <- 1..num_requests do
-                dest_key = j + i |> Integer.to_string              
+                if j + i < num_nodes do
+                    dest_key = j + i |> Integer.to_string                                  
+                else
+                    dest = i + j - num_nodes
+                    dest_key = dest |> Integer.to_string 
+                end
 
                 # source_node and destination_node are strings here           
                 destination_node = Map.get(distance_nodes_map, dest_key)
@@ -103,9 +108,9 @@ defmodule Coordinator do
         #Enum.each(node_map, fn(node) -> IO.inspect node end)
 
         # map index to nodeId        
-        distance_nodes_map = Map.put(distance_nodes_map, index |> to_string, nodeId)             
-        #IO.puts "inside the distance_nodes_map"
-        #Enum.each(distance_nodes_map, fn(node) -> IO.inspect node end)
+        distance_nodes_map = Map.put(distance_nodes_map, index |> Integer.to_string, nodeId)             
+        IO.puts "inside the distance_nodes_map"
+        Enum.each(distance_nodes_map, fn(node) -> IO.inspect node end)
         create_workers(node_map, distance_nodes_map, index - 1)
     end
 

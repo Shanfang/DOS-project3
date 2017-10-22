@@ -99,7 +99,7 @@ defmodule Worker do
         destination_int = destination_node |> String.to_integer(10)
         row = num_shared_digits_AD
         
-        # get the row-th digit from destination_node
+        # get the row-th digit from destination_node 
         col_str = String.slice(destination_node, row, 1) 
         column = String.to_integer(col_str)
         start_index = length(leaf_set) - 1 
@@ -113,7 +113,7 @@ defmodule Worker do
         
         cond do
             destination_int >= first_leaf && destination_int <= last_leaf ->
-                IO.puts "Find next node in leaf set..."
+                #IO.puts "Find next node in leaf set..."
                 # first scenario in the routing procedure             
                 next_nodeId = search_leaf_set(destination_int, inital_distanceTD, next_nodeId, leaf_set, start_index)                    
             routing_table[row][column] != "00000000" ->
@@ -130,7 +130,13 @@ defmodule Worker do
                 rare_case1 = rare_leaf_set(destination_node, distance_AD, next_nodeId, leaf_set, start_index, num_shared_digits_AD)
                     
                 # check if there are numerically closer nodes in the routing table
-                rare_case2 = rare_routing_table(destination_node, routing_table, num_shared_digits_AD, start_index, next_nodeId, distance_AD)
+                #IO.puts "Destination node is " <> destination_node                
+                #dest_char = String.slice(destination_node, row, 1)
+                #IO.puts "The char is " <> dest_char 
+                #dest_digit= String.to_integer(dest_char)
+                dest_digit = String.slice(destination_node, row, 1) |> String.to_integer
+                
+                rare_case2 = rare_routing_table(dest_digit, routing_table, num_shared_digits_AD, start_index, next_nodeId, 8)
                     
                 # check if there are numerically closer nodes in the neighbor set
                 rare_case3 = rare_neighbor_set(destination_node, neighbor_set, start_index, next_nodeId, num_shared_digits_AD, distance_AD)
@@ -153,7 +159,7 @@ defmodule Worker do
             num_of_hops = num_of_hops + 1
             Worker.deliver_msg(next_node_pid, source_node, destination_node, num_of_hops)  
         else 
-            IO.put "Oops, msg can not be routed!"
+            IO.puts "Oops, msg can not be routed!"
         end
         {:noreply, state}            
     end
@@ -213,16 +219,24 @@ defmodule Worker do
         next_nodeId
     end 
 
-    defp rare_routing_table(destination_node, routing_table, num_shared_digits_AD, index, next_nodeId, distance_AD) when index >= 0 do
-        some_node = routing_table[num_shared_digits_AD][index]
-        result = rare_case_node(destination_node, some_node, num_shared_digits_AD, distance_AD)
-        if result != "00000000" do
-            next_nodeId = some_node
+    #defp rare_routing_table(destination_node, routing_table, num_shared_digits_AD, index, next_nodeId, distance_AD) when index >= 0 do
+    defp rare_routing_table(dest_digit, routing_table, num_shared_digits_AD, index, next_nodeId, minimum) when index >= 0 do            
+        if index == dest_digit do
+            index = index - 1
         end
-        rare_routing_table(destination_node, routing_table, num_shared_digits_AD, index - 1, next_nodeId, distance_AD)      
+        #some_node = routing_table[num_shared_digits_AD][index]
+        if abs(index - dest_digit) < minimum && routing_table[num_shared_digits_AD][index] != "00000000" do
+            min = abs(index - dest_digit)
+            next_nodeId = routing_table[num_shared_digits_AD][index]
+        end
+        #result = rare_case_node(destination_node, some_node, num_shared_digits_AD, distance_AD)
+        #if result != "00000000" do
+        #    next_nodeId = some_node
+        #end
+        rare_routing_table(dest_digit, routing_table, num_shared_digits_AD, index - 1, next_nodeId, minimum)      
     end
     
-    defp rare_routing_table(destination_node, routing_table, num_shared_digits_AD, start_index, next_nodeId, distance_AD) do
+    defp rare_routing_table(dest_digit, routing_table, num_shared_digits_AD, index, next_nodeId, minimum) do
         next_nodeId
     end 
 

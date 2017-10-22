@@ -8,7 +8,7 @@ defmodule Coordinator do
 
     # build network using the input parameters
     def build_network(coordinator, num_nodes, num_requests) do
-        GenServer.cast(coordinator, {:build_network, num_nodes, num_requests})
+        GenServer.call(coordinator, {:build_network, num_nodes, num_requests})
     end
 
 
@@ -17,38 +17,30 @@ defmodule Coordinator do
     end
     ######################### callbacks ####################
     def init(%{}) do
-        state = %{distance_nodes_map: %{}, node_map: %{}, sorted_node_listz: [], total: 0, requests: 0, hops: 0, reports: 0}
+        state = %{distance_nodes_map: %{}, node_map: %{}, sorted_node_list: [], total: 0, requests: 0, hops: 0, reports: 0}
         {:ok, state}
     end
 
-    def handle_cast({:build_network, num_nodes, num_requests}, state) do
+    def handle_call({:build_network, num_nodes, num_requests}, _from, state) do
         distance_nodes_map = state[:distance_nodes_map]
         node_map = state[:node_map]
-        for index <- 0..num_nodes - 1 do
-            Worker.start_link(index) 
-            #nodeId = generate_nodeId(str_index, node_map)
-            nodeId = generate_nodeId(index)
 
-            # map actor nodeId to actor pid
-            node = index |> Integer.to_string |> String.to_atom
-            node_map = Map.put(state[:node_map], nodeId, node) 
-
-            Enum.each(node_map, fn(node) -> IO.inspect node end)
-            # map index to nodeId
-            distance_nodes_map = Map.put(distance_nodes_map, index |> to_string |> String.to_atom, nodeId)  
-            Enum.each(distance_nodes_map, fn(node) -> IO.inspect node end)
-            
-        end 
+        tuple = create_workers(node_map, distance_nodes_map, num_nodes - 1)
+        node_map = elem(tuple, 0)
+        distance_nodes_map = elem(tuple, 1)
 
         # sorted_node_list stores the string id of each node(get from the node_map's keys)
-        sorted_node_list = Map.keys(state[:node_map]) |> Enum.sort
+        sorted_node_list = Map.keys(node_map) |> Enum.sort
 
         IO.puts "Start to init workers from coordinator..."
         init_workers(num_nodes, node_map, distance_nodes_map, sorted_node_list)
+        IO.puts "Finish init workers..."
+        
+        IO.puts "Start to send requests from coordiantor..."
         send_requests(node_map, distance_nodes_map, num_requests, num_nodes, state[:num_of_hops])
 
         new_state = %{state | node_map: node_map, distance_nodes_map: distance_nodes_map, sorted_node_list: sorted_node_list, total: num_nodes, requests: num_requests}
-        {:noreply, new_state}
+        {:reply, :ok, new_state}
     end
 
 
@@ -66,43 +58,17 @@ defmodule Coordinator do
     end  
     ######################### helper functions ####################
     
-    # set a unique identifier for each node
-    #defp gene_nodeId(str_index, node_map) do
-        #hashed_id = Base.encode16(:crypto.hash(:sha256, str_index)) 
-        #            |> String.downcase 
-        #            |> String.to_atom 
-
-        #case Map.hasKey?(node_map, hashed_id) do
-        #   true ->
-        #       range = Application.get_env(:project3, :len_range, 4)                
-        #       str_index = str_index <> RandomBytes.base62(:rand.uniform(range))               
-        #       get_nodeId(str_index)
-        #   _ ->
-        #       hashed_id
-        #end
-        #hashed_id 
-
-        # generate base4 str and does not check collision
-        # this generate 16 bits nodeId, if we want 128 bits, change base to 16 and
-        # make changes in generate leaf_set and routing table
-    
     defp generate_nodeId(index) do
         index |> Integer.to_string(4) |> String.pad_leading(8, "0")
     end
 
     defp init_workers(num_nodes, node_map, distance_nodes_map, sorted_node_list) do
         for i <- 0..num_nodes - 1 do
-            IO.puts "In the for loop..."            
             node_key = i |> Integer.to_string |> String.to_atom
-            nodeId = Map.get(distance_nodes_map, node_key)
-            IO.inspect nodeId
-            
+            nodeId = Map.get(distance_nodes_map, node_key)           
             worker = Map.get(node_map, nodeId)
-            IO.inspect worker
-
-            Worker.init_pastry_worker(worker, distance_nodes_map, sorted_node_list)
+            Worker.init_pastry_worker(worker, distance_nodes_map, sorted_node_list, node_map)
         end
-        IO.puts "Finish init workers..."
     end
 
     # send request to nodes that are numerically closest in index
@@ -122,5 +88,27 @@ defmodule Coordinator do
                 Worker.deliver_msg(source_pid, source_node, destination_node, num_of_hops)
             end
         end
+    end
+
+    def create_workers(node_map, distance_nodes_map, index) when index >= 0 do
+        node = Worker.start_link(index) |> elem(1)
+        #IO.inspect node
+        nodeId = generate_nodeId(index)
+
+        # map actor nodeId to actor pid
+        #node = index |> Integer.to_string |> String.to_atom
+        node_map = Map.put(node_map, nodeId, node) 
+        #IO.puts "inside the node_map"
+        #Enum.each(node_map, fn(node) -> IO.inspect node end)
+
+        # map index to nodeId
+        distance_nodes_map = Map.put(distance_nodes_map, index |> to_string |> String.to_atom, nodeId)             
+        #IO.puts "inside the distance_nodes_map"
+        #Enum.each(distance_nodes_map, fn(node) -> IO.inspect node end)
+        create_workers(node_map, distance_nodes_map, index - 1)
+    end
+
+    def create_workers(node_map, distance_nodes_map, index) do
+        {node_map, distance_nodes_map}
     end
 end

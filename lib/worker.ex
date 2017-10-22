@@ -10,31 +10,40 @@ defmodule Worker do
         GenServer.start_link(__MODULE__, index, [name: actor_name])
     end
 
-    def init_pastry_worker(actor_name, distance_nodes_map, sorted_node_list) do
-        GeneServer.cast(actor_name, {:init_pastry_worker, distance_nodes_map, sorted_node_list})
+    def init_pastry_worker(actor_name, distance_nodes_map, sorted_node_list, node_map) do
+        GenServer.call(actor_name, {:init_pastry_worker, distance_nodes_map, sorted_node_list, node_map})
     end
 
+    def deliver_msg(actor_name, source_node, destination_node, num_of_hops) do
+        IO.puts "Api to deliver msg in pastry worker..."
+        GenServer.cast(actor_name, {:deliver_msg, source_node, destination_node, num_of_hops})
+    end
     ######################### callbacks ####################
 
-    def init(index, node_map) do 
+    def init(index) do 
         state = %{id: 0, routing_table: %{}, neighbor_set: [], leaf_set: [], distance_nodes_map: %{}, node_map: %{}}
-        new_state = %{state | id: index, node_map: node_map}
+        new_state = %{state | id: index}
         {:ok, new_state}
     end
 
-    def handle_cast({:init_pastry_worker, distance_nodes_map, sorted_node_list}, state) do
-        nodeId = Map.get(distance_nodes_map, state[:id] |> Integer.to_string |> String.to_atom)
+    def handle_call({:init_pastry_worker, distance_nodes_map, sorted_node_list, node_map}, _from, state) do
+        id = state[:id]
+        key = id |> Integer.to_string |> String.to_atom
+        nodeId = Map.get(distance_nodes_map, key)
 
         # get the index of the nodeId in sorted_nodes_list, it can be different from id as it is sorted 
         sorted_list_index = Enum.find_index(sorted_node_list, fn(nodeId) -> 
-            nodeId == Integer.to_string(state[:id])
+            String.to_integer(nodeId) == state[:id]
         end)
+        IO.puts "To init worker with sorted_node_list, index is..."
+        IO.inspect sorted_list_index
+
         leaf_set = generate_leaf_set(sorted_list_index, sorted_node_list)
         neighbor_set = generate_neighbor_set(state[:id], distance_nodes_map)
         routing_table = generate_routing_table(state[:id], distance_nodes_map)
         
-        new_state = %{state | leaf_set: leaf_set, neighbor_set: neighbor_set, routing_table: routing_table, distance_nodes_map: distance_nodes_map} 
-        {:noreply, new_state}        
+        new_state = %{state | leaf_set: leaf_set, neighbor_set: neighbor_set, routing_table: routing_table, distance_nodes_map: distance_nodes_map, node_map: node_map} 
+        {:reply, :ok, new_state}        
     end
 
     @doc """

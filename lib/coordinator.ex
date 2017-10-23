@@ -34,7 +34,7 @@ defmodule Coordinator do
 
         IO.puts "Start to init workers from coordinator..."
         init_workers(num_nodes, node_map, distance_nodes_map, sorted_node_list)
-        IO.puts "Finish init workers..."
+        IO.puts "Finish initing workers..."
         
         IO.puts "Start to send requests from coordiantor..."
         send_requests(node_map, distance_nodes_map, num_requests, num_nodes, state[:hops])

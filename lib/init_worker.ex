@@ -2,17 +2,17 @@ defmodule InitWorker do
     import Matrix
     
     # handle case when there are more than 8 nodes
-    def generate_leaf_set(index, sorted_node_list) when length(sorted_node_list) > 8 do
-        leaf_set = List.duplicate("00000000", 8)
+    def generate_leaf_set(index, sorted_node_list) do
+        leaf_set = List.duplicate("00000000", 16)
         leaf_indicator = 0
         total = length(sorted_node_list)
         cond do
-            index - 4 < 0 ->
+            index - 8 < 0 ->
                 leaf_indicator = 0
-            index + 4 > total - 1
-                leaf_indicator = total - 9
+            index + 8 > total - 1
+                leaf_indicator = total - 17
             true ->
-                leaf_indicator = index - 4 
+                leaf_indicator = index - 8 
         end
         len = length(leaf_set)
         set_up_leaf(len - 1, 0, leaf_indicator, sorted_node_list, leaf_set)
@@ -21,7 +21,7 @@ defmodule InitWorker do
     defp set_up_leaf(flag, index, leaf_indicator, sorted_node_list, leaf_set) when flag >=0 do
         len = length(leaf_set)
         # skip the node itself
-        if index == 4 do
+        if index == 8 do
             leaf_indicator = leaf_indicator + 1
         end
         
@@ -35,17 +35,16 @@ defmodule InitWorker do
     end
 
     def generate_routing_table(index, distance_nodes_map) do
-        IO.puts "Generate routing table..."
         list  = 
         [
-            List.duplicate("00000000", 4),
-            List.duplicate("00000000", 4),
-            List.duplicate("00000000", 4),
-            List.duplicate("00000000", 4),
-            List.duplicate("00000000", 4),
-            List.duplicate("00000000", 4),
-            List.duplicate("00000000", 4),
-            List.duplicate("00000000", 4)
+            List.duplicate("00000000", 16),
+            List.duplicate("00000000", 16),
+            List.duplicate("00000000", 16),
+            List.duplicate("00000000", 16),
+            List.duplicate("00000000", 16),
+            List.duplicate("00000000", 16),
+            List.duplicate("00000000", 16),
+            List.duplicate("00000000", 16)
         ]
         routing_table = Matrix.from_list(list)
         node_key = index |> Integer.to_string
@@ -65,7 +64,7 @@ defmodule InitWorker do
             full_len = String.length(id)
             row = get_shared_len(to_fill, id, full_len, 0, 0)               
             col_str = String.slice(to_fill, row, 1)
-            column =  String.to_integer(col_str)
+            column =  String.to_integer(col_str, 16)
             if routing_table[row][column] == "00000000" do                    
                 routing_table = put_in(routing_table[row][column], to_fill)
             end                     
@@ -89,10 +88,10 @@ defmodule InitWorker do
     end
 
     def generate_neighbor_set(id, distance_nodes_map) do
-        neighbor_set = List.duplicate("00000000", 8)
+        neighbor_set = List.duplicate("00000000", 32)
         len = length(neighbor_set)        
         total = map_size(distance_nodes_map)
-        set_up_neighbor(len - 1, 1, 0, total, distance_nodes_map, neighbor_set)
+        neighbor_set = set_up_neighbor(len - 1, 1, 0, total, distance_nodes_map, neighbor_set)
     end
     defp set_up_neighbor(flag, index, next, total, distance_nodes_map, neighbor_set) when flag >= 0 do
         if next == total do

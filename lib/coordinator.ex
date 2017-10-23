@@ -8,7 +8,7 @@ defmodule Coordinator do
 
     # build network using the input parameters
     def build_network(coordinator, num_nodes, num_requests) do
-        GenServer.call(coordinator, {:build_network, num_nodes, num_requests}, 100000)
+        GenServer.call(coordinator, {:build_network, num_nodes, num_requests}, 30000000)
     end
 
 
@@ -59,7 +59,7 @@ defmodule Coordinator do
     ######################### helper functions ####################
     
     defp generate_nodeId(index) do
-        index |> Integer.to_string(4) |> String.pad_leading(8, "0")
+        index |> Integer.to_string(16) |> String.pad_leading(8, "0")
     end
 
     defp init_workers(num_nodes, node_map, distance_nodes_map, sorted_node_list) do

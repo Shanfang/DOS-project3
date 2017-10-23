@@ -32,7 +32,7 @@ defmodule Worker do
 
         # get the index of the nodeId in sorted_nodes_list, it can be different from id as it is sorted 
         sorted_list_index = Enum.find_index(sorted_node_list, fn(nodeId) -> 
-            nodeId == state[:id] |> Integer.to_string(4) |> String.pad_leading(8, "0")            
+            nodeId == state[:id] |> Integer.to_string(16) |> String.pad_leading(8, "0")            
         end)
         leaf_set = generate_leaf_set(sorted_list_index, sorted_node_list)
         neighbor_set = generate_neighbor_set(state[:id], distance_nodes_map)
@@ -72,30 +72,30 @@ defmodule Worker do
 
         # if total number of nodes in the network is >= 9, then there would be 8 elements in the leaf set.
         # if total number of nodes in the network is < 9, then there would be less than 8 elements in the leaf set.
-        leaf_set_size = 8        
-        if length(leaf_set) <= 8 do
+        leaf_set_size = 16        
+        if length(leaf_set) <= 16 do
             leaf_set_size = map_size(node_map) - 1
         end
 
         # if the key (id) lies within the leafSet range, then route the 
         # message to the node whose id is numerically closest to the key (id)
         # id is string in leaf_set
-        first_leaf = List.first(leaf_set) |> String.to_integer(10)
-        last_leaf = List.last(leaf_set) |> String.to_integer(10)
-        destination_int = destination_node |> String.to_integer(10)
+        first_leaf = List.first(leaf_set) |> String.to_integer(16)
+        last_leaf = List.last(leaf_set) |> String.to_integer(16)
+        destination_int = destination_node |> String.to_integer(16)
         row = num_shared_digits_AD
         
         # get the row-th digit from destination_node 
         col_str = String.slice(destination_node, row, 1) 
-        column = String.to_integer(col_str)
+        column = String.to_integer(col_str, 16)
         start_index = length(leaf_set) - 1 
         inital_distanceTD = abs(destination_int - last_leaf)
         #inital_distanceAD = abs(destination_int - state[:id])
-        id_int_base10 = state[:distance_nodes_map] 
+        id_int_base16 = state[:distance_nodes_map] 
                         |> Map.get(Integer.to_string(state[:id])) 
-                        |> String.to_integer
-        dest_int_base10 = String.to_integer(destination_node, 10)
-        distance_AD = abs(id_int_base10 - dest_int_base10)
+                        |> String.to_integer(16)
+        dest_int_base16 = String.to_integer(destination_node, 16)
+        distance_AD = abs(id_int_base16 - dest_int_base16)
         
         cond do
             destination_int >= first_leaf && destination_int <= last_leaf ->
@@ -112,7 +112,7 @@ defmodule Worker do
                 # check if there are numerically closer nodes in the leaf set
                 rare_case1 = rare_leaf_set(destination_node, distance_AD, next_nodeId, leaf_set, start_index, num_shared_digits_AD)
 
-                dest_digit = String.slice(destination_node, row, 1) |> String.to_integer
+                dest_digit = String.slice(destination_node, row, 1) |> String.to_integer(16)
                 
                 rare_case2 = rare_routing_table(dest_digit, routing_table, num_shared_digits_AD, start_index, next_nodeId, 8)
                     
@@ -136,8 +136,8 @@ defmodule Worker do
             next_node_pid = Map.get(node_map, next_nodeId)
             num_of_hops = num_of_hops + 1
             Worker.deliver_msg(next_node_pid, source_node, destination_node, num_of_hops)  
-        else 
-            IO.puts "Oops, msg can not be routed!"
+        #else 
+            #IO.puts "Oops, msg can not be routed!"
         end
         {:noreply, state}            
     end
@@ -173,11 +173,13 @@ defmodule Worker do
     defp rare_case_node(destination_node, some_node, num_shared_digits_AD, distance_AD) do
         next_nodeId = "00000000"
         full_len = String.length(destination_node)
-        dest_int_base10 = String.to_integer(destination_node, 10)
-        some_int_base10 = String.to_integer(some_node, 10)
+        #dest_int_base16 = String.to_integer(destination_node, 10)
+        #some_int_base10 = String.to_integer(some_node, 10)
+        dest_int_base16 = String.to_integer(destination_node, 16)
+        some_int_base16 = String.to_integer(some_node, 16)
 
         num_shared_digits_TD = get_shared_len(destination_node, some_node, full_len, 0, 0)
-        distance_TD = abs(dest_int_base10 - some_int_base10)
+        distance_TD = abs(dest_int_base16 - some_int_base16)
         
         if num_shared_digits_TD >= num_shared_digits_AD && distance_TD < distance_AD do
             next_nodeId = some_node
